@@ -1,0 +1,29 @@
+# Ignore Visual Studio files
+.vs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# PyInstaller build folders
+build/
+dist/
+dist_new/
+*.spec
+
+# VS Code settings
+.vscode/
+
+# Environment folders
+env/
+venv/
+.venv/
+
+# Logs
+*.log
+
+# OS files
+Thumbs.db
+.DS_Store

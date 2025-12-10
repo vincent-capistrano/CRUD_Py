@@ -1,0 +1,1 @@
+ py -m PyInstaller --onefile --windowed --add-data "C:\Users\errol\source\repos\test_py\test_py\config.ini;." "C:\Users\errol\source\repos\test_py\test_py\test_py.py"
