@@ -516,6 +516,18 @@ def open_form(title, create=True, record_id=None, current_data=None):
                 val = ""
             entry.insert(0, str(val))
         entries[col] = entry
+
+    # Make fields read-only for non-admin users when viewing an existing record
+    try:
+        if not create and CURRENT_USER_ROLE != "admin":
+            for ent in entries.values():
+                try:
+                    ent.config(state='readonly')
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     def submit():
         data = {col: entries[col].get() for col in cols}
         if create:
@@ -546,12 +558,12 @@ def open_form(title, create=True, record_id=None, current_data=None):
         finally:
             form.destroy()
 
-    tk.Button(form, text="Submit", command=submit, bg="#28a745", fg="white").grid(row=len(cols), column=0, padx=5, pady=10)
-    tk.Button(form, text="Cancel", command=form.destroy, bg="#FFC90E", fg="black").grid(row=len(cols), column=2, padx=5, pady=10)
+    tk.Button(form, text="Back", command=form.destroy, bg="#FFC90E", fg="black").grid(row=len(cols), column=2, padx=5, pady=10)
 
     if not create:
         try:
             if CURRENT_USER_ROLE == "admin":
+                tk.Button(form, text="Submit", command=submit, bg="#28a745", fg="white").grid(row=len(cols), column=0, padx=5, pady=10)
                 tk.Button(form, text="Delete", command=confirm_and_delete, bg="#dc3545", fg="white").grid(row=len(cols), column=1, padx=5, pady=10)
         except Exception:
             pass
@@ -564,12 +576,17 @@ def on_treeview_double_click(event):
     if not item:
         return
     item_id = tree.item(item, "values")[0]
-    if CURRENT_USER_ROLE == "admin":
-        df = current_df
+    df = current_df
+    try:
         record = df[df["Id"] == int(item_id)]
-        if not record.empty:
-            current_data = record.iloc[0].to_dict()
+    except Exception:
+        record = df[df["Id"] == item_id]
+    if not record.empty:
+        current_data = record.iloc[0].to_dict()
+        if CURRENT_USER_ROLE == "admin":
             open_form("Edit Record", create=False, record_id=item_id, current_data=current_data)
+        else:
+            open_form("View Record", create=False, record_id=item_id, current_data=current_data)
 
 # ---------------- TUTORIAL ----------------
 def show_tutorial():
@@ -689,5 +706,6 @@ except Exception as e:
     sys.exit(1)
 
 search_entry.bind('<KeyRelease>', search_data)
+
 
 root.mainloop()
