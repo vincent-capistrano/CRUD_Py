@@ -560,7 +560,6 @@ def open_form(title, create=True, record_id=None, current_data=None):
 
     tk.Button(form, text="Back", command=form.destroy, bg="#FFC90E", fg="black").grid(row=len(cols), column=2, padx=5, pady=10)
 
-    # Only show submit/delete when editing and user is admin
     if not create:
         try:
             if CURRENT_USER_ROLE == "admin":
@@ -584,7 +583,6 @@ def on_treeview_double_click(event):
         record = df[df["Id"] == item_id]
     if not record.empty:
         current_data = record.iloc[0].to_dict()
-        # Allow admins to edit, regular users to view (read-only)
         if CURRENT_USER_ROLE == "admin":
             open_form("Edit Record", create=False, record_id=item_id, current_data=current_data)
         else:
@@ -708,5 +706,6 @@ except Exception as e:
     sys.exit(1)
 
 search_entry.bind('<KeyRelease>', search_data)
+
 
 root.mainloop()
