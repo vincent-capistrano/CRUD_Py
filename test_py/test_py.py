@@ -118,7 +118,14 @@ def login():
                 messagebox.showerror("Login Failed", "Invalid credentials")
                 return
             global CURRENT_USER_ROLE, CURRENT_USERNAME
-            CURRENT_USER_ROLE = df.iloc[0]['Role']
+            # Normalize role to avoid case/whitespace mismatches (e.g. 'Admin', ' admin ')
+            try:
+                CURRENT_USER_ROLE = str(df.iloc[0].get('Role', '')).strip().lower()
+            except Exception:
+                try:
+                    CURRENT_USER_ROLE = str(df.iloc[0]['Role']).strip().lower()
+                except Exception:
+                    CURRENT_USER_ROLE = ''
             # prefer the Username column if present, otherwise use the entered username
             try:
                 CURRENT_USERNAME = df.iloc[0].get('Username', username) or username
@@ -203,11 +210,18 @@ def login():
     login_win.grab_set()
     root.wait_window(login_win)
 
+# Helper to check admin role consistently
+def is_admin():
+    try:
+        return str(CURRENT_USER_ROLE or "").strip().lower() == "admin"
+    except Exception:
+        return False
+
 # ---------------- ROLE PERMISSIONS ----------------
 def apply_role_permissions():
     # show or hide Add button based on role
     try:
-        if CURRENT_USER_ROLE == "admin":
+        if is_admin():
             # ensure button is visible
             try:
                 if not add_button.winfo_ismapped():
@@ -502,7 +516,47 @@ def open_form(title, create=True, record_id=None, current_data=None):
     form.geometry("550x600")
     form.configure(bg="#ffffff")
     entries = {}
+
+    # Validators factory functions
+    def _make_numeric_validator(allow_float: bool):
+        def _validate(p):
+            if p == "":
+                return True
+            try:
+                if allow_float:
+                    float(p)
+                else:
+                    # allow leading minus for negative ints
+                    if p.lstrip('-').isdigit():
+                        pass
+                    else:
+                        return False
+                return True
+            except Exception:
+                return False
+        return _validate
+
+    def _make_text_validator():
+        def _validate(p):
+            # allow empty; otherwise disallow digits
+            if p == "":
+                return True
+            return not any(ch.isdigit() for ch in p)
+        return _validate
+
+    def _date_focusout_validate(entry, col_name):
+        val = entry.get().strip()
+        if val == "":
+            return
+        try:
+            # Accept ISO date YYYY-MM-DD
+            datetime.strptime(val, "%Y-%m-%d")
+        except Exception:
+            messagebox.showerror("Invalid Date", f"Column '{col_name}' expects a date in YYYY-MM-DD format.")
+            entry.focus_set()
+
     cols = [c for c in tree["columns"] if c not in ["Id", "DateModified"]]
+
     for i, col in enumerate(cols):
         tk.Label(form, text=col, bg="#ffffff").grid(row=i, column=0, padx=5, pady=5, sticky="w")
         entry = tk.Entry(form, width=40)
@@ -510,16 +564,131 @@ def open_form(title, create=True, record_id=None, current_data=None):
         hint_text = get_hint_for_column(col)
         hint_label = tk.Label(form, text=hint_text, bg="#ffffff", fg="#6c757d")
         hint_label.grid(row=i, column=2, padx=5, pady=5, sticky="w")
+
+        lname = col.lower()
+        try:
+            if any(x in lname for x in ["date", "time", "dob", "biddingdate", "noa", "ntp", "targetcompletion", "coc"]):
+                def _format_digits_to_date(s: str) -> str:
+                    digits = ''.join(ch for ch in str(s) if ch.isdigit())[:8]
+                    if not digits:
+                        return ''
+                    formatted = digits
+                    if len(digits) >= 4:
+                        formatted = digits[:4]
+                        if len(digits) >= 6:
+                            formatted += '-' + digits[4:6]
+                            if len(digits) > 6:
+                                formatted += '-' + digits[6:8]
+                        else:
+                            formatted += '-' + digits[4:]
+                    return formatted
+
+                def _date_validate_key(p):
+                    if p == "":
+                        return True
+                    if len(p) > 10:
+                        return False
+                    return all(ch.isdigit() or ch == '-' for ch in p)
+
+                var = tk.StringVar()
+                entry.config(textvariable=var)
+                entry._formatting = False
+                # mark this entry as driven by a StringVar so prefill can use var.set
+
+                def _calc_cursor_pos_from_digits(digits_before: int, formatted: str) -> int:
+                    if digits_before <= 0:
+                        return 0
+                    count = 0
+                    for i, ch in enumerate(formatted):
+                        if ch.isdigit():
+                            count += 1
+                        if count == digits_before:
+                            pos = i + 1
+                            if pos < len(formatted) and formatted[pos] == '-':
+                                return pos + 1
+                            return pos
+                    return len(formatted)
+
+                def _on_var_change(*args, en=entry, sv=var):
+                    if getattr(en, '_formatting', False):
+                        return
+                    try:
+                        s = sv.get()
+                        try:
+                            cur = en.index(tk.INSERT)
+                        except Exception:
+                            cur = len(s)
+                        digits_before = sum(1 for ch in s[:cur] if ch.isdigit())
+                        formatted = _format_digits_to_date(s)
+                        if s != formatted:
+                            try:
+                                en._formatting = True
+                                sv.set(formatted)
+                                new_pos = _calc_cursor_pos_from_digits(digits_before, formatted)
+                                if new_pos < 0:
+                                    new_pos = 0
+                                if new_pos > len(formatted):
+                                    new_pos = len(formatted)
+                                en.after(0, lambda pos=new_pos, w=en: w.icursor(pos))
+                            finally:
+                                en._formatting = False
+                    except Exception:
+                        pass
+
+                try:
+                    var.trace_add('write', _on_var_change)
+                except Exception:
+                    var.trace('w', _on_var_change)
+
+                entry.bind('<FocusOut>', lambda e, en=entry, cn=col: (_on_var_change(), _date_focusout_validate(en, cn)))
+
+            elif any(x in lname for x in ["noof", "count", "qty", "number", "id"]):
+                vcmd = form.register(_make_numeric_validator(False))
+                entry.config(validate='key', validatecommand=(vcmd, '%P'))
+            elif any(x in lname for x in ["amount", "price", "cost", "budget", "payment"]):
+                vcmd = form.register(_make_numeric_validator(True))
+                entry.config(validate='key', validatecommand=(vcmd, '%P'))
+            elif 'item' in lname:
+
+                pass
+            else:
+                vcmd = form.register(_make_text_validator())
+                entry.config(validate='key', validatecommand=(vcmd, '%P'))
+        except Exception:
+            pass
+
         if current_data:
-            val = current_data[col]
+            val = current_data.get(col, "")
             if pd.isna(val):
                 val = ""
-            entry.insert(0, str(val))
+            if any(x in lname for x in ["date", "time", "dob", "biddingdate", "noa", "ntp", "targetcompletion", "coc"]):
+                try:
+                    try:
+                        var.set(_format_digits_to_date(val))
+                    except Exception:
+                        val = _format_digits_to_date(val)
+                except Exception:
+                    pass
+            else:
+                # programmatic insert can be blocked by validate='key'; disable briefly
+                try:
+                    cur_validate = entry.cget('validate')
+                except Exception:
+                    cur_validate = ''
+                try:
+                    entry.config(validate='none')
+                    entry.delete(0, tk.END)
+                    entry.insert(0, str(val))
+                finally:
+                    try:
+                        if cur_validate:
+                            entry.config(validate=cur_validate)
+                    except Exception:
+                        pass
         entries[col] = entry
 
-    # Make fields read-only for non-admin users when viewing an existing record
     try:
-        if not create and CURRENT_USER_ROLE != "admin":
+        if not create and not is_admin():
             for ent in entries.values():
                 try:
                     ent.config(state='readonly')
@@ -537,7 +706,7 @@ def open_form(title, create=True, record_id=None, current_data=None):
         form.destroy()
 
     def confirm_and_delete():
-        if CURRENT_USER_ROLE != "admin":
+        if not is_admin():
             messagebox.showerror("Permission Denied", "Only admins can delete records.")
             return
         if not messagebox.askyesno("Confirm Delete", "Are you sure you want to permanently delete this record?"):
@@ -560,14 +729,13 @@ def open_form(title, create=True, record_id=None, current_data=None):
 
     tk.Button(form, text="Back", command=form.destroy, bg="#FFC90E", fg="black").grid(row=len(cols), column=2, padx=5, pady=10)
 
-    # Only show submit/delete when editing and user is admin
-    if not create:
-        try:
-            if CURRENT_USER_ROLE == "admin":
-                tk.Button(form, text="Submit", command=submit, bg="#28a745", fg="white").grid(row=len(cols), column=0, padx=5, pady=10)
+    try:
+        if is_admin():
+            tk.Button(form, text="Submit", command=submit, bg="#28a745", fg="white").grid(row=len(cols), column=0, padx=5, pady=10)
+            if not create:
                 tk.Button(form, text="Delete", command=confirm_and_delete, bg="#dc3545", fg="white").grid(row=len(cols), column=1, padx=5, pady=10)
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     form.grab_set()
 
@@ -584,8 +752,7 @@ def on_treeview_double_click(event):
         record = df[df["Id"] == item_id]
     if not record.empty:
         current_data = record.iloc[0].to_dict()
-        # Allow admins to edit, regular users to view (read-only)
-        if CURRENT_USER_ROLE == "admin":
+        if is_admin():
             open_form("Edit Record", create=False, record_id=item_id, current_data=current_data)
         else:
             open_form("View Record", create=False, record_id=item_id, current_data=current_data)
@@ -658,7 +825,6 @@ export_button.pack(side=tk.LEFT, padx=5)
 
 # Add button
 add_button = make_button(button_frame, text="Add New Record", command=lambda: open_form("Add New Record", create=True), bg="#007bff", fg='white')
-add_button.pack(side=tk.LEFT, padx=5)
 
 # Tutorial button
 tutorial_button = make_button(button_frame, text="Help", command=show_tutorial, bg="#6f42c1")
