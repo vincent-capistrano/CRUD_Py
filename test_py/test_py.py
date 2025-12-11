@@ -734,8 +734,8 @@ def open_form(title, create=True, record_id=None, current_data=None):
             if CURRENT_USER_ROLE == "admin":
                 tk.Button(form, text="Submit", command=submit, bg="#28a745", fg="white").grid(row=len(cols), column=0, padx=5, pady=10)
                 tk.Button(form, text="Delete", command=confirm_and_delete, bg="#dc3545", fg="white").grid(row=len(cols), column=1, padx=5, pady=10)
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     form.grab_set()
 
