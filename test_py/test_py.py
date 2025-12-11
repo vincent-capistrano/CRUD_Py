@@ -726,16 +726,20 @@ def open_form(title, create=True, record_id=None, current_data=None):
             messagebox.showerror("Delete Error", str(e))
         finally:
             form.destroy()
+    
+        
 
-    tk.Button(form, text="Back", command=form.destroy, bg="#FFC90E", fg="black").grid(row=len(cols), column=2, padx=5, pady=10)
+    try:
+        tk.Button(form, text="Back", command=form.destroy, bg="#FFC90E", fg="black").grid(row=len(cols), column=2, padx=5, pady=10)
 
-    if not create:
-        try:
-            if CURRENT_USER_ROLE == "admin":
-                tk.Button(form, text="Submit", command=submit, bg="#28a745", fg="white").grid(row=len(cols), column=0, padx=5, pady=10)
-                tk.Button(form, text="Delete", command=confirm_and_delete, bg="#dc3545", fg="white").grid(row=len(cols), column=1, padx=5, pady=10)
-        except Exception:
-            pass
+        if CURRENT_USER_ROLE.lower() == "admin":
+            tk.Button(form, text="Submit", command=submit, bg="#28a745", fg="white").grid(row=len(cols), column=0, padx=5, pady=10)
+
+        if not create and CURRENT_USER_ROLE.lower() == "admin":
+            tk.Button(form, text="Delete", command=confirm_and_delete, bg="#dc3545", fg="white").grid(row=len(cols), column=1, padx=5, pady=10)
+
+    except Exception:
+        pass
 
     form.grab_set()
 
