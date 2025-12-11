@@ -729,10 +729,10 @@ def open_form(title, create=True, record_id=None, current_data=None):
 
     tk.Button(form, text="Back", command=form.destroy, bg="#FFC90E", fg="black").grid(row=len(cols), column=2, padx=5, pady=10)
 
-    try:
-        if is_admin():
-            tk.Button(form, text="Submit", command=submit, bg="#28a745", fg="white").grid(row=len(cols), column=0, padx=5, pady=10)
-            if not create:
+    if not create:
+        try:
+            if CURRENT_USER_ROLE == "admin":
+                tk.Button(form, text="Submit", command=submit, bg="#28a745", fg="white").grid(row=len(cols), column=0, padx=5, pady=10)
                 tk.Button(form, text="Delete", command=confirm_and_delete, bg="#dc3545", fg="white").grid(row=len(cols), column=1, padx=5, pady=10)
     except Exception:
         pass
@@ -752,7 +752,7 @@ def on_treeview_double_click(event):
         record = df[df["Id"] == item_id]
     if not record.empty:
         current_data = record.iloc[0].to_dict()
-        if is_admin():
+        if CURRENT_USER_ROLE == "admin":
             open_form("Edit Record", create=False, record_id=item_id, current_data=current_data)
         else:
             open_form("View Record", create=False, record_id=item_id, current_data=current_data)
@@ -874,5 +874,6 @@ except Exception as e:
     sys.exit(1)
 
 search_entry.bind('<KeyRelease>', search_data)
+
 
 root.mainloop()
