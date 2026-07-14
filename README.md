@@ -145,3 +145,9 @@ CRUD_Py/
 ├── TaskDB_App.spec       # PyInstaller build spec
 └── README.md
 ```
+
+---
+
+## Author
+
+[@vincent-capistrano](https://github.com/vincent-capistrano)
