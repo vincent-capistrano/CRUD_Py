@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.spec.bak
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# PyInstaller artifacts (keep spec, ignore binaries)
+build/
+dist/
+
+# Logs / temp
+*.log
+error.log
+export.txt
